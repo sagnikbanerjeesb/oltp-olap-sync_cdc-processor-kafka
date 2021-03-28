@@ -1,5 +1,6 @@
-package com.sagnik.cdcProcessorKafka;
+package com.sagnik.cdcProcessorKafka.cdcProcessing;
 
+import com.sagnik.cdcProcessorKafka.gracefulShutdown.Stoppable;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.*;
 import org.apache.kafka.common.TopicPartition;
@@ -9,12 +10,19 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
-public class StudentCDCProcessor implements Runnable, Stoppable {
-    private final String topic = "oltp-olap-sync.public.student";
+public abstract class CDCKafkaProcessor implements Runnable, Stoppable {
+    private final String topic;
     private final KafkaConsumer<String, String> consumer;
-    private final AtomicBoolean continueProcessing = new AtomicBoolean(true);
+    private final AtomicBoolean continueProcessing;
 
-    public StudentCDCProcessor() {
+    public CDCKafkaProcessor(String topic) {
+        this.topic = topic;
+        this.continueProcessing = new AtomicBoolean(true);
+        this.consumer = constructKafkaConsumer();
+    }
+
+    private KafkaConsumer constructKafkaConsumer() {
+        // TODO externalise properties
         Properties props = new Properties();
         props.put("bootstrap.servers", "localhost:9092");
         props.put("group.id", "cdc-processor");
@@ -24,7 +32,7 @@ public class StudentCDCProcessor implements Runnable, Stoppable {
                 "org.apache.kafka.common.serialization.StringDeserializer");
         props.put("value.deserializer",
                 "org.apache.kafka.common.serialization.StringDeserializer");
-        consumer = new KafkaConsumer(props);
+        return new KafkaConsumer(props);
     }
 
     @Override
@@ -62,9 +70,11 @@ public class StudentCDCProcessor implements Runnable, Stoppable {
         while (continueProcessing.get()) {
             ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(5L));
             for (ConsumerRecord<String, String> record : records) {
-                log.info("RECEIVED: offset = {}, key = {}, value = {}", record.offset(), record.key(), record.value());
+                log.debug("RECEIVED: offset = {}, key = {}, value = {}", record.offset(), record.key(), record.value());
+                processCDCEvent(record.value());
             }
 
+            log.debug("Committing offsets");
             consumer.commitSync();
         }
 
@@ -72,4 +82,6 @@ public class StudentCDCProcessor implements Runnable, Stoppable {
 
         consumer.close();
     }
+
+    abstract protected void processCDCEvent(String cdcRecord); // will evolve
 }

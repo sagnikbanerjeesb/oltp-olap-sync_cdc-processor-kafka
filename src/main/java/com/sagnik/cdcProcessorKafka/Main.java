@@ -1,5 +1,9 @@
 package com.sagnik.cdcProcessorKafka;
 
+import com.sagnik.cdcProcessorKafka.cdcProcessing.ContactCDCProcessor;
+import com.sagnik.cdcProcessorKafka.cdcProcessing.StudentCDCProcessor;
+import com.sagnik.cdcProcessorKafka.gracefulShutdown.RunningProcess;
+import com.sagnik.cdcProcessorKafka.gracefulShutdown.ShutdownHook;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -10,11 +14,17 @@ import java.util.concurrent.Executors;
 @Slf4j
 public class Main {
     public static void main(String[] args) {
-        final ExecutorService executorService = Executors.newFixedThreadPool(1);
-        final StudentCDCProcessor studentCDCProcessor = new StudentCDCProcessor();
-        final CompletableFuture<Void> studentFuture = CompletableFuture.runAsync(studentCDCProcessor, executorService);
-        final RunningProcess studentCDCProcess = new RunningProcess(studentCDCProcessor, studentFuture);
+        final ExecutorService executorService = Executors.newFixedThreadPool(2);
 
-        Runtime.getRuntime().addShutdownHook(new Thread(new ShutdownHook(executorService, List.of(studentCDCProcess))));
+        final StudentCDCProcessor studentCDCProcessor = new StudentCDCProcessor();
+        final CompletableFuture<Void> studentProcessorFuture = CompletableFuture.runAsync(studentCDCProcessor, executorService);
+        final RunningProcess studentCDCProcess = new RunningProcess(studentCDCProcessor, studentProcessorFuture);
+
+        final ContactCDCProcessor contactCDCProcessor = new ContactCDCProcessor();
+        final CompletableFuture<Void> contactProcessorFuture = CompletableFuture.runAsync(contactCDCProcessor, executorService);
+        final RunningProcess contactCDCProcess = new RunningProcess(contactCDCProcessor, contactProcessorFuture);
+
+        final ShutdownHook shutdownHook = new ShutdownHook(executorService, List.of(studentCDCProcess, contactCDCProcess));
+        Runtime.getRuntime().addShutdownHook(new Thread(shutdownHook));
     }
 }

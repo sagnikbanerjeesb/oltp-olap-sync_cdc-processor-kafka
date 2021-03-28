@@ -1,4 +1,4 @@
-package com.sagnik.cdcProcessorKafka;
+package com.sagnik.cdcProcessorKafka.gracefulShutdown;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
