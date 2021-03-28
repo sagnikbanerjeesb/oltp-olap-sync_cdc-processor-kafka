@@ -11,7 +11,7 @@ public class StudentCDCProcessor extends CDCKafkaProcessor {
     }
 
     @Override
-    protected void processCDCEvent(String cdcRecord) {
-        log.info("PROCESSING Student CDC Event: {}", cdcRecord);
+    protected void processCDCEvent(ChangeEvent cdcRecord) {
+        log.info("PROCESSING Student CDC Event: {}", cdcRecord.toString());
     }
 }

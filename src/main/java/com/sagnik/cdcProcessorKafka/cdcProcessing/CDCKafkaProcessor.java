@@ -1,5 +1,7 @@
 package com.sagnik.cdcProcessorKafka.cdcProcessing;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sagnik.cdcProcessorKafka.cdcProcessing.dto.CDCRecord;
 import com.sagnik.cdcProcessorKafka.gracefulShutdown.Stoppable;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.*;
@@ -12,16 +14,54 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public abstract class CDCKafkaProcessor implements Runnable, Stoppable {
     private final String topic;
-    private final KafkaConsumer<String, String> consumer;
     private final AtomicBoolean continueProcessing;
+    private final ObjectMapper objectMapper;
 
     public CDCKafkaProcessor(String topic) {
         this.topic = topic;
         this.continueProcessing = new AtomicBoolean(true);
-        this.consumer = constructKafkaConsumer();
+        this.objectMapper = new ObjectMapper();
     }
 
-    private KafkaConsumer constructKafkaConsumer() {
+    @Override
+    public void stop() {
+        continueProcessing.set(false);
+    }
+
+    @Override
+    public void run() {
+        try (KafkaConsumer<String, String> consumer = constructKafkaConsumer()){
+            while (continueProcessing.get()) {
+                ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(5L)); // FIXME hard coded poll interval
+                for (ConsumerRecord<String, String> record : records) {
+                    log.debug("RECEIVED: offset = {}, key = {}, value = {}", record.offset(), record.key(), record.value());
+                    processCDCEvent(transformKafkaRecordToDomain(record));
+                }
+
+                log.debug("Committing offsets");
+                consumer.commitSync();
+            }
+
+            log.info("Aborting");
+        } catch (Exception e) {
+            log.error("Exception while processing kafka event", e);
+        }
+    }
+
+    private ChangeEvent transformKafkaRecordToDomain(ConsumerRecord<String, String> record) throws com.fasterxml.jackson.core.JsonProcessingException {
+        return objectMapper.readValue(record.value(), CDCRecord.class).toChangeEvent();
+    }
+
+    private KafkaConsumer<String, String> constructKafkaConsumer() {
+        Properties props = constructKafkaConsumerProps();
+        KafkaConsumer<String, String> consumer = new KafkaConsumer(props);
+
+        subscribeToTopic(consumer);
+
+        return consumer;
+    }
+
+    private Properties constructKafkaConsumerProps() {
         // TODO externalise properties
         Properties props = new Properties();
         props.put("bootstrap.servers", "localhost:9092");
@@ -32,16 +72,10 @@ public abstract class CDCKafkaProcessor implements Runnable, Stoppable {
                 "org.apache.kafka.common.serialization.StringDeserializer");
         props.put("value.deserializer",
                 "org.apache.kafka.common.serialization.StringDeserializer");
-        return new KafkaConsumer(props);
+        return props;
     }
 
-    @Override
-    public void stop() {
-        continueProcessing.set(false);
-    }
-
-    @Override
-    public void run() {
+    private void subscribeToTopic(KafkaConsumer<String, String> consumer) {
         consumer.subscribe(Arrays.asList(topic), new ConsumerRebalanceListener() {
             @Override
             public void onPartitionsRevoked(Collection<TopicPartition> partitions) {
@@ -66,22 +100,7 @@ public abstract class CDCKafkaProcessor implements Runnable, Stoppable {
                 });
             }
         });
-
-        while (continueProcessing.get()) {
-            ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(5L));
-            for (ConsumerRecord<String, String> record : records) {
-                log.debug("RECEIVED: offset = {}, key = {}, value = {}", record.offset(), record.key(), record.value());
-                processCDCEvent(record.value());
-            }
-
-            log.debug("Committing offsets");
-            consumer.commitSync();
-        }
-
-        log.info("Aborting");
-
-        consumer.close();
     }
 
-    abstract protected void processCDCEvent(String cdcRecord); // will evolve
+    abstract protected void processCDCEvent(ChangeEvent cdcRecord); // will evolve
 }
