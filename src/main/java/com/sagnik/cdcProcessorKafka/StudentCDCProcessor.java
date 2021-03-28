@@ -9,7 +9,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
-public class StudentCDCProcessor implements Runnable {
+public class StudentCDCProcessor implements Runnable, Stoppable {
     private final String topic = "oltp-olap-sync.public.student";
     private final KafkaConsumer<String, String> consumer;
     private final AtomicBoolean continueProcessing = new AtomicBoolean(true);
@@ -27,6 +27,7 @@ public class StudentCDCProcessor implements Runnable {
         consumer = new KafkaConsumer(props);
     }
 
+    @Override
     public void stop() {
         continueProcessing.set(false);
     }
