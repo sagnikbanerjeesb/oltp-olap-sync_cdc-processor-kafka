@@ -1,5 +1,7 @@
-package com.sagnik.cdcProcessorKafka.cdcProcessing;
+package com.sagnik.cdcProcessorKafka.cdcProcessing.tableSpecificProcesors;
 
+import com.sagnik.cdcProcessorKafka.cdcProcessing.CDCKafkaProcessor;
+import com.sagnik.cdcProcessorKafka.cdcProcessing.ChangeEvent;
 import lombok.extern.slf4j.Slf4j;
 
 @Slf4j

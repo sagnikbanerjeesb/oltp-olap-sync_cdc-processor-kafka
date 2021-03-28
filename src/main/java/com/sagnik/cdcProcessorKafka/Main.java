@@ -1,7 +1,7 @@
 package com.sagnik.cdcProcessorKafka;
 
-import com.sagnik.cdcProcessorKafka.cdcProcessing.ContactCDCProcessor;
-import com.sagnik.cdcProcessorKafka.cdcProcessing.StudentCDCProcessor;
+import com.sagnik.cdcProcessorKafka.cdcProcessing.tableSpecificProcesors.ContactCDCProcessor;
+import com.sagnik.cdcProcessorKafka.cdcProcessing.tableSpecificProcesors.StudentCDCProcessor;
 import com.sagnik.cdcProcessorKafka.gracefulShutdown.RunningProcess;
 import com.sagnik.cdcProcessorKafka.gracefulShutdown.ShutdownHook;
 import lombok.extern.slf4j.Slf4j;
