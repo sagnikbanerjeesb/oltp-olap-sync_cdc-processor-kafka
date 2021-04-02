@@ -30,8 +30,11 @@ public class ContactCDCProcessor extends CDCKafkaProcessor {
 
     // FIXME: Write query doesn't belong here as its not coupled to contact
     private static final String WRITE_QUERY =
-                    "INSERT INTO student_contact (student_id, contact_id, name, contact_number) " +
-                    "  VALUES (?, ?, ?, ?)";
+            "INSERT INTO student_contact (student_id, contact_id, name, contact_number) " +
+                    "  VALUES (?, ?, ?, ?) " +
+                    "ON CONFLICT(student_id, contact_id) " +
+                    "DO " +
+                    "  UPDATE SET name = EXCLUDED.name, contact_number = EXCLUDED.contact_number";
 
     private final JdbcTemplate sourceJdbcTemplate;
     private final JdbcTemplate targetJdbcTemplate;
