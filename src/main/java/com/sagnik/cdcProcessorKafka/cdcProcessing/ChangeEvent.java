@@ -31,6 +31,10 @@ public class ChangeEvent {
         return INITIAL_LOAD == operation || CREATE == operation;
     }
 
+    public boolean isUpdate() {
+        return UPDATE == operation;
+    }
+
     public Map<String, Object> currentValuesForColumns(Set<String> columns) {
         if (OPERATIONS_HAVING_RELEVANT_DATA_IN_AFTER.contains(operation)) {
             return extractGivenColumnsFromAfter(columns);

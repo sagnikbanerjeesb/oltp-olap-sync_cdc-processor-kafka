@@ -46,7 +46,7 @@ public class StudentCDCProcessor extends CDCKafkaProcessor {
 
     @Override
     protected void processCDCEvent(ChangeEvent changeEvent) {
-        if (changeEvent.isInsertion()) {
+        if (changeEvent.isInsertion() || changeEvent.isUpdate()) { // FIXME: dangerous to process all update events in this way
             log.info("PROCESSING Student CDC Event: {}", changeEvent.toString());
 
             final long studentId = getStudentId(changeEvent);
