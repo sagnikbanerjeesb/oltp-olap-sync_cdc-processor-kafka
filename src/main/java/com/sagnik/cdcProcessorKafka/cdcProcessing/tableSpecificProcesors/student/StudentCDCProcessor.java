@@ -35,6 +35,10 @@ public class StudentCDCProcessor extends CDCKafkaProcessor {
                     "DO " +
                     "  UPDATE SET name = EXCLUDED.name, contact_number = EXCLUDED.contact_number";
 
+    private static final String DELETE_QUERY =
+                    "DELETE FROM student_contact " +
+                    "  WHERE student_id = ?";
+
     private final JdbcTemplate sourceJdbcTemplate;
     private final JdbcTemplate targetJdbcTemplate;
 
@@ -46,18 +50,33 @@ public class StudentCDCProcessor extends CDCKafkaProcessor {
 
     @Override
     protected void processCDCEvent(ChangeEvent changeEvent) {
+        log.info("PROCESSING Student CDC Event: {}", changeEvent.toString());
+
         if (changeEvent.isInsertion() || changeEvent.isUpdate()) { // FIXME: dangerous to process all update events in this way
-            log.info("PROCESSING Student CDC Event: {}", changeEvent.toString());
-
-            final long studentId = getStudentId(changeEvent);
-
+            final long studentId = getCurrentStudentId(changeEvent);
             sourceJdbcTemplate.query(READ_QUERY, this::pushToOlap, studentId);
+        } else if (changeEvent.isDeletion()) {
+            final long studentId = getPreviousStudentId(changeEvent);
+            final int affectedRows = targetJdbcTemplate.update(DELETE_QUERY, studentId);
+
+            log.info("Deleted {} rows", affectedRows);
         }
     }
 
-    private long getStudentId(ChangeEvent changeEvent) {
+    private long getCurrentStudentId(ChangeEvent changeEvent) {
         final long studentId;
         final Object studentIdObj = changeEvent.currentValuesForColumns(Set.of(PRIMARY_KEY)).get(PRIMARY_KEY); // FIXME
+        if (studentIdObj instanceof Integer) {
+            studentId = (Integer) studentIdObj;
+        } else {
+            studentId = (Long) studentIdObj;
+        }
+        return studentId;
+    }
+
+    private long getPreviousStudentId(ChangeEvent changeEvent) {
+        final long studentId;
+        final Object studentIdObj = changeEvent.previousValuesForColumns(Set.of(PRIMARY_KEY)).get(PRIMARY_KEY); // FIXME
         if (studentIdObj instanceof Integer) {
             studentId = (Integer) studentIdObj;
         } else {

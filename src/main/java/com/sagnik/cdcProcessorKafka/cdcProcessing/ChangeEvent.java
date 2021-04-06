@@ -17,6 +17,7 @@ import static com.sagnik.cdcProcessorKafka.cdcProcessing.CDCOperation.*;
 @ToString // TODO remove
 public class ChangeEvent {
     public static final Set<CDCOperation> OPERATIONS_HAVING_RELEVANT_DATA_IN_AFTER = Set.of(CREATE, UPDATE, INITIAL_LOAD);
+    public static final Set<CDCOperation> OPERATIONS_HAVING_RELEVANT_DATA_IN_BEFORE = Set.of(UPDATE, DELETE);
 
     @NonNull
     private final CDCOperation operation;
@@ -35,6 +36,10 @@ public class ChangeEvent {
         return UPDATE == operation;
     }
 
+    public boolean isDeletion() {
+        return DELETE == operation;
+    }
+
     public Map<String, Object> currentValuesForColumns(Set<String> columns) {
         if (OPERATIONS_HAVING_RELEVANT_DATA_IN_AFTER.contains(operation)) {
             return extractGivenColumnsFromAfter(columns);
@@ -43,8 +48,24 @@ public class ChangeEvent {
         }
     }
 
+    public Map<String, Object> previousValuesForColumns(Set<String> columns) {
+        if (OPERATIONS_HAVING_RELEVANT_DATA_IN_BEFORE.contains(operation)) {
+            return extractGivenColumnsFromBefore(columns);
+        } else {
+            throw new UnsupportedOperationException(); // TODO
+        }
+    }
+
     private Map<String, Object> extractGivenColumnsFromAfter(Set<String> columns) {
         return after.entrySet()
+                .stream()
+                .filter(entry -> columns.contains(entry.getKey()))
+                .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()));
+    }
+
+    // FIXME refactor
+    private Map<String, Object> extractGivenColumnsFromBefore(Set<String> columns) {
+        return before.entrySet()
                 .stream()
                 .filter(entry -> columns.contains(entry.getKey()))
                 .collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()));

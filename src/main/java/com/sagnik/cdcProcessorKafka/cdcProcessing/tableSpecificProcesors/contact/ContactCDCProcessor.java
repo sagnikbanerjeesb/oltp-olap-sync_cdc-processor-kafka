@@ -30,11 +30,15 @@ public class ContactCDCProcessor extends CDCKafkaProcessor {
 
     // FIXME: Write query doesn't belong here as its not coupled to contact
     private static final String WRITE_QUERY =
-            "INSERT INTO student_contact (student_id, contact_id, name, contact_number) " +
+                    "INSERT INTO student_contact (student_id, contact_id, name, contact_number) " +
                     "  VALUES (?, ?, ?, ?) " +
                     "ON CONFLICT(student_id, contact_id) " +
                     "DO " +
                     "  UPDATE SET name = EXCLUDED.name, contact_number = EXCLUDED.contact_number";
+
+    private static final String DELETE_QUERY =
+                    "DELETE FROM student_contact " +
+                    "  WHERE contact_id = ?";
 
     private final JdbcTemplate sourceJdbcTemplate;
     private final JdbcTemplate targetJdbcTemplate;
@@ -47,18 +51,33 @@ public class ContactCDCProcessor extends CDCKafkaProcessor {
 
     @Override
     protected void processCDCEvent(ChangeEvent changeEvent) {
+        log.info("PROCESSING Contact CDC Event: {}", changeEvent.toString());
+
         if (changeEvent.isInsertion() || changeEvent.isUpdate()) { // FIXME: dangerous to process all update events in this way
-            log.info("PROCESSING Contact CDC Event: {}", changeEvent.toString());
-
-            final long contactId = getContactId(changeEvent);
-
+            final long contactId = getCurrentContactId(changeEvent);
             sourceJdbcTemplate.query(READ_QUERY, this::pushToOlap, contactId);
+        } else if (changeEvent.isDeletion()) {
+            final long contactId = getPreviousContactId(changeEvent);
+            final int affectedRows = targetJdbcTemplate.update(DELETE_QUERY, contactId);
+            log.info("Deleted {} rows", affectedRows);
         }
     }
 
-    private long getContactId(ChangeEvent changeEvent) {
+    private long getCurrentContactId(ChangeEvent changeEvent) {
         final long contactId;
         final Object contactIdObj = changeEvent.currentValuesForColumns(Set.of(PRIMARY_KEY)).get(PRIMARY_KEY); // FIXME
+        if (contactIdObj instanceof Integer) {
+            contactId = (Integer) contactIdObj;
+        } else {
+            contactId = (Long) contactIdObj;
+        }
+        return contactId;
+    }
+
+    // FIXME refactor
+    private long getPreviousContactId(ChangeEvent changeEvent) {
+        final long contactId;
+        final Object contactIdObj = changeEvent.previousValuesForColumns(Set.of(PRIMARY_KEY)).get(PRIMARY_KEY); // FIXME
         if (contactIdObj instanceof Integer) {
             contactId = (Integer) contactIdObj;
         } else {

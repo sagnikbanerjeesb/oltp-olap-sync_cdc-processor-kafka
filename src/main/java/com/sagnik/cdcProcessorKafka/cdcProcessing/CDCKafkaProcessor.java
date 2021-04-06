@@ -35,6 +35,10 @@ public abstract class CDCKafkaProcessor implements Runnable, Stoppable {
                 ConsumerRecords<String, String> records = consumer.poll(Duration.ofSeconds(5L)); // FIXME hard coded poll interval
                 for (ConsumerRecord<String, String> record : records) {
                     log.debug("RECEIVED: offset = {}, key = {}, value = {}", record.offset(), record.key(), record.value());
+                    if (record.value() == null) {
+                        log.error("Kafka message has null value");
+                        continue;
+                    }
                     processCDCEvent(transformKafkaRecordToDomain(record));
                 }
 
