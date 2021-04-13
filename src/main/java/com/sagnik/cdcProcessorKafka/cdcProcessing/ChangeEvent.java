@@ -56,6 +56,17 @@ public class ChangeEvent {
         }
     }
 
+    public Set<String> changedColumns() {
+        return after.entrySet().stream()
+                .filter(entry -> {
+                    Object beforeValue = before.get(entry.getKey());
+                    if (entry.getValue() == null) return beforeValue != null;
+                    return !entry.getValue().equals(beforeValue);
+                })
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toSet());
+    }
+
     private Map<String, Object> extractGivenColumnsFromAfter(Set<String> columns) {
         return after.entrySet()
                 .stream()

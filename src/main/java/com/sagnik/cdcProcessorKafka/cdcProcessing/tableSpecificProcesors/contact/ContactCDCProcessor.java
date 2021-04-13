@@ -14,6 +14,7 @@ import java.util.Set;
 public class ContactCDCProcessor extends CDCKafkaProcessor {
     private static final String TOPIC = "oltp-olap-sync.public.contact";
     private static final String PRIMARY_KEY = "contact_id";
+    public static final String JOIN_COLUMN = "student_id";
 
     // FIXME: Read query doesn't belong here as this is not tightly coupled to contact domain (except the where clause)
     private static final String READ_QUERY =
@@ -36,7 +37,7 @@ public class ContactCDCProcessor extends CDCKafkaProcessor {
                     "DO " +
                     "  UPDATE SET name = EXCLUDED.name, contact_number = EXCLUDED.contact_number";
 
-    private static final String DELETE_QUERY =
+    private static final String DELETE_BY_PK_QUERY =
                     "DELETE FROM student_contact " +
                     "  WHERE contact_id = ?";
 
@@ -53,12 +54,18 @@ public class ContactCDCProcessor extends CDCKafkaProcessor {
     protected void processCDCEvent(ChangeEvent changeEvent) {
         log.info("PROCESSING Contact CDC Event: {}", changeEvent.toString());
 
-        if (changeEvent.isInsertion() || changeEvent.isUpdate()) { // FIXME: dangerous to process all update events in this way
+        if (changeEvent.isUpdate() && changeEvent.changedColumns().contains(JOIN_COLUMN)) {
+            final long previousContactId = getPreviousContactId(changeEvent);
+            final int affectedRows = targetJdbcTemplate.update(DELETE_BY_PK_QUERY, previousContactId);
+            log.info("Deleted {} rows", affectedRows);
+            final long currentContactId = getCurrentContactId(changeEvent);
+            sourceJdbcTemplate.query(READ_QUERY, this::pushToOlap, currentContactId);
+        } else if (changeEvent.isInsertion() || changeEvent.isUpdate()) {
             final long contactId = getCurrentContactId(changeEvent);
             sourceJdbcTemplate.query(READ_QUERY, this::pushToOlap, contactId);
         } else if (changeEvent.isDeletion()) {
             final long contactId = getPreviousContactId(changeEvent);
-            final int affectedRows = targetJdbcTemplate.update(DELETE_QUERY, contactId);
+            final int affectedRows = targetJdbcTemplate.update(DELETE_BY_PK_QUERY, contactId);
             log.info("Deleted {} rows", affectedRows);
         }
     }
